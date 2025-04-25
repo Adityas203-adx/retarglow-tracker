@@ -5,7 +5,10 @@ exports.handler = async (event) => {
 
   return {
     statusCode: 200,
-    headers: { 'Content-Type': 'application/javascript' },
+    headers: {
+      'Content-Type': 'application/javascript',
+      'Access-Control-Allow-Origin': '*'  // Allow all domains, or specify the exact domain
+    },
     body: script,
   };
 };
