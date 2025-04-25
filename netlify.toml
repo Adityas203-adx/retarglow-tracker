@@ -1,7 +1,18 @@
-[functions]
-  directory = "functions"
+[build]
+  functions = "functions"
+  publish = "public"
+
+[[redirects]]
+  from = "/loadscript/:id"
+  to = "/.netlify/functions/pixelServe/:id"
+  status = 200
+
 [[redirects]]
   from = "/pixel"
-  to = "/.netlify/functions/loadscript/default"
+  to = "/.netlify/functions/pixelServe"
   status = 200
-  force = true
+
+[[redirects]]
+  from = "/pixel/:id"
+  to = "/.netlify/functions/pixelServe/:id"
+  status = 200
