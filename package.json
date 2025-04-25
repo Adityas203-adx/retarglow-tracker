@@ -1,0 +1,10 @@
+{
+  "name": "retarglow-tracker",
+  "version": "1.0.0",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.0.0",
+    "cookie": "^0.5.0",
+    "node-fetch": "^2.6.1",
+    "uuid": "^9.0.0"
+  }
+}
