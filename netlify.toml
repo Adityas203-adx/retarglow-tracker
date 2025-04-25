@@ -1,2 +1,7 @@
 [functions]
   directory = "functions"
+[[redirects]]
+  from = "/pixel"
+  to = "/.netlify/functions/loadscript/default"
+  status = 200
+  force = true
