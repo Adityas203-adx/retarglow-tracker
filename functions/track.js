@@ -6,7 +6,7 @@ const UAParser = require('ua-parser-js');
 
 // Supabase config
 const SUPABASE_URL = 'https://nandqoilqwsepborxkrz.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hbmRxb2lscXdzZXBib3J4a3J6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUzNTkwODAsImV4cCI6MjA2MDkzNTA4MH0.FU7khFN_ESgFTFETWcyTytqcaCQFQzDB6LB5CzVQiOg'; // ← safer to use environment variables
+const SUPABASE_KEY = 'your_supabase_key_here'; // ← safer with env vars
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // GA4 config
@@ -18,7 +18,7 @@ exports.handler = async (event) => {
   const params = event.queryStringParameters || {};
   const body = JSON.parse(event.body || '{}');
   const ip = headers['x-forwarded-for'] || '0.0.0.0';
-  const userAgent = headers['user-agent'] || '';
+  const userAgent = headers['user-agent'] || body.user_agent || '';
   const cookies = cookie.parse(headers.cookie || '');
 
   // Generate or retrieve user ID
@@ -34,12 +34,11 @@ exports.handler = async (event) => {
   const os = ua.getOS();
   const browser = ua.getBrowser();
 
-  // Get website the pixel was loaded on
-  const website = headers.referer || '';
+  // Use body.page_url if provided, else fallback
+  const website = body.page_url || headers.referer || '';
 
   const metadata = {
     ...body,
-    ...params,
     website,
     os_name: os.name || '',
     os_version: os.version || '',
@@ -53,10 +52,10 @@ exports.handler = async (event) => {
     event: params.event || 'page_view',
     timestamp: new Date().toISOString(),
     page_url: website,
-    referrer: headers.origin || '',
+    referrer: body.referrer || headers.origin || '',
     user_agent: userAgent,
     ip_address: ip,
-    country: '', region: '', city: '', // You can add GeoIP later
+    country: '', region: '', city: '', // Later GeoIP upgrade
     custom_metadata: metadata,
   };
 
