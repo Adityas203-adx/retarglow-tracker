@@ -42,20 +42,18 @@ exports.handler = async (event) => {
       custom_metadata,
     } = body;
 
-    // Extract IP
     const ip =
       event.headers["x-forwarded-for"]?.split(",")[0] ||
       event.headers["client-ip"] ||
       "unknown";
 
-    // IPInfo lookup
     let country = null,
       region = null,
       city = null;
 
     try {
       const res = await fetch(
-        `https://ipinfo.io/${ip}?token=d9a93a74769916`
+        `https://ipinfo.io/${ip}?token=YOUR_IPINFO_TOKEN`
       );
       const geo = await res.json();
       country = geo.country || null;
@@ -65,7 +63,6 @@ exports.handler = async (event) => {
       console.error("Geo lookup failed:", geoErr);
     }
 
-    // Insert to Supabase
     const { data, error } = await supabase.from("events").insert([
       {
         event: custom_metadata?.event || "viewPage",
