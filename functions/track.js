@@ -3,7 +3,7 @@ const fetch = require("node-fetch");
 
 const supabase = createClient(
   "https://nandqoilqwsepborxkrz.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hbmRxb2lscXdzZXBib3J4a3J6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUzNTkwODAsImV4cCI6MjA2MDkzNTA4MH0.FU7khFN_ESgFTFETWcyTytqcaCQFQzDB6LB5CzVQiOg"
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hbmRxb2lscXdzZXBib3J4a3J6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUzNTkwODAsImV4cCI6MjA2MDkzNTA4MH0.FU7khFN_ESgFTFETWcyTytqcaCQFQzDB6LB5CzVQiOg" // Your anon key
 );
 
 exports.handler = async (event) => {
@@ -28,28 +28,24 @@ exports.handler = async (event) => {
   }
 
   try {
-    const body = JSON.parse(event.body);
+    const raw = JSON.parse(event.body);
 
-    // Obfuscated keys from pixelserve.js
-    const {
-      a: custom_id,
-      b: page_url,
-      c: referrer,
-      d: user_agent,
-      e: device_type,
-      f: browser,
-      g: os,
-      h: screen_resolution,
-      i: custom_metadata,
-    } = body;
+    // Handle both normal and obfuscated keys
+    const custom_id = raw.custom_id || raw.a || null;
+    const page_url = raw.page_url || raw.b || null;
+    const referrer = raw.referrer || raw.c || null;
+    const user_agent = raw.user_agent || raw.d || null;
+    const device_type = raw.device_type || raw.e || null;
+    const browser = raw.browser || raw.f || null;
+    const os = raw.os || raw.g || null;
+    const screen_resolution = raw.screen_resolution || raw.h || null;
+    const custom_metadata = raw.custom_metadata || raw.i || {};
 
-    // Extract IP address
     const ip =
       event.headers["x-forwarded-for"]?.split(",")[0] ||
       event.headers["client-ip"] ||
       "unknown";
 
-    // Location lookup via ipinfo.io
     let country = null,
       region = null,
       city = null;
@@ -66,12 +62,12 @@ exports.handler = async (event) => {
 
     const { data, error } = await supabase.from("events").insert([
       {
-        event: i?.event || "viewPage",
+        event: custom_metadata?.event || "viewPage",
         page_url,
         referrer,
         user_agent,
         ip_address: ip,
-        custom_id: custom_id || null,
+        custom_id,
         device_type,
         browser,
         os,
@@ -79,13 +75,13 @@ exports.handler = async (event) => {
         country,
         region,
         city,
-        custom_metadata: i,
+        custom_metadata,
         device_info: {
           device_type,
           browser,
           os,
           screen_resolution,
-          ...i,
+          ...custom_metadata,
         },
         os_name: os || null,
         browser_name: browser || null,
