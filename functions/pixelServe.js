@@ -1,44 +1,6 @@
 exports.handler = async (event) => {
   const id = event.queryStringParameters?.id || "unknown";
-
-  const script = `(function(){
-    try {
-      var z = localStorage.getItem("rid");
-      if (!z) {
-        z = crypto.randomUUID();
-        localStorage.setItem("rid", z);
-      }
-
-      var p = {
-        a: "${id}", // custom_id
-        b: window.location.href, // page_url
-        c: document.referrer || null, // referrer
-        d: navigator.userAgent, // user_agent
-        e: /Mobi|Android/i.test(navigator.userAgent) ? "Mobile" : "Desktop", // device_type
-        f: (function() {
-          var ua = navigator.userAgent;
-          if (ua.indexOf("Chrome") > -1) return "Chrome";
-          if (ua.indexOf("Firefox") > -1) return "Firefox";
-          if (ua.indexOf("Safari") > -1) return "Safari";
-          return "Unknown";
-        })(), // browser
-        g: navigator.platform, // os
-        h: window.screen.width + "x" + window.screen.height, // screen_resolution
-        i: {
-          rid: z // custom_metadata
-        }
-      };
-
-      fetch("https://retarglow.com/.netlify/functions/track", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(p)
-      });
-    } catch(e) {}
-  })();`;
-
+  const script = `!function(){try{var e=localStorage.getItem("retarglow_id");e||(e=crypto.randomUUID(),localStorage.setItem("retarglow_id",e));var t={custom_id:"${id}",page_url:location.href,referrer:document.referrer||null,user_agent:navigator.userAgent,device_type:/Mobi|Android/i.test(navigator.userAgent)?"Mobile":"Desktop",browser:function(){var e=navigator.userAgent;return e.indexOf("Chrome")>-1?"Chrome":e.indexOf("Firefox")>-1?"Firefox":e.indexOf("Safari")>-1?"Safari":"Unknown"}(),os:navigator.platform,screen_resolution:screen.width+"x"+screen.height,custom_metadata:{retarglow_id:e}};fetch("https://retarglow.com/.netlify/functions/track",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(t)})}catch(e){}}();`;
   return {
     statusCode: 200,
     headers: {
