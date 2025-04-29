@@ -1,12 +1,28 @@
 const { createClient } = require("@supabase/supabase-js");
-const fetch = require("node-fetch");
 
 const supabase = createClient(
   "https://nandqoilqwsepborxkrz.supabase.co",
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hbmRxb2lscXdzZXBib3J4a3J6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUzNTkwODAsImV4cCI6MjA2MDkzNTA4MH0.FU7khFN_ESgFTFETWcyTytqcaCQFQzDB6LB5CzVQiOg"
 );
 
+// Get geo data using ipinfo.io
+async function getGeoFromIP(ip) {
+  try {
+    const res = await fetch(`https://ipinfo.io/${ip}?token=d9a93a74769916`);
+    if (!res.ok) return {};
+    const json = await res.json();
+    return {
+      country: json.country || null,
+      region: json.region || null,
+      city: json.city || null
+    };
+  } catch {
+    return {};
+  }
+}
+
 exports.handler = async (event) => {
+  // Handle preflight (OPTIONS) request for CORS
   if (event.httpMethod === "OPTIONS") {
     return {
       statusCode: 204,
@@ -29,34 +45,25 @@ exports.handler = async (event) => {
 
   try {
     const body = JSON.parse(event.body);
+
     const {
+      custom_id,
       page_url,
       referrer,
       user_agent,
-      device_info,
-      event: eventName,
-      custom_id,
+      device_type,
+      browser,
+      os,
       screen_resolution,
+      custom_metadata,
+      device_info,
+      event: eventName
     } = body;
 
-    // Extract IP address from headers
     const ip =
-      event.headers["x-forwarded-for"]?.split(",")[0] ||
-      event.headers["client-ip"] ||
-      null;
+      event.headers["x-forwarded-for"]?.split(",")[0]?.trim() || null;
 
-    // Get geolocation data from IP
-    let geo = {};
-    if (ip) {
-      try {
-        const geoRes = await fetch(`https://ipapi.co/${ip}/json/`);
-        geo = await geoRes.json();
-      } catch (geoErr) {
-        console.error("Geo lookup failed:", geoErr.message);
-      }
-    }
-
-    const { country_name, region, city } = geo;
+    const geo = await getGeoFromIP(ip);
 
     const { data, error } = await supabase.from("events").insert([
       {
@@ -66,15 +73,19 @@ exports.handler = async (event) => {
         user_agent,
         ip_address: ip,
         custom_id,
+        device_type,
+        browser,
+        os,
         screen_resolution,
-        country: country_name || null,
-        region: region || null,
-        city: city || null,
+        country: geo.country,
+        region: geo.region,
+        city: geo.city,
+        custom_metadata: custom_metadata || {},
         device_info: device_info || {},
-        device_type: device_info?.device_type || null,
         os_name: device_info?.os_name || null,
+        os_version: device_info?.os_version || null,
         browser_name: device_info?.browser_name || null,
-        browser_version: device_info?.browser_version || null,
+        browser_version: device_info?.browser_version || null
       },
     ]);
 
