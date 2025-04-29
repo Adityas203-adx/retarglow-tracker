@@ -3,7 +3,7 @@ const fetch = require("node-fetch");
 
 const supabase = createClient(
   "https://nandqoilqwsepborxkrz.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hbmRxb2lscXdzZXBib3J4a3J6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUzNTkwODAsImV4cCI6MjA2MDkzNTA4MH0.FU7khFN_ESgFTFETWcyTytqcaCQFQzDB6LB5CzVQiOg" // Your anon key
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hbmRxb2lscXdzZXBib3J4a3J6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUzNTkwODAsImV4cCI6MjA2MDkzNTA4MH0.FU7khFN_ESgFTFETWcyTytqcaCQFQzDB6LB5CzVQiOg"
 );
 
 exports.handler = async (event) => {
@@ -28,28 +28,28 @@ exports.handler = async (event) => {
   }
 
   try {
-    const raw = JSON.parse(event.body);
+    const body = JSON.parse(event.body);
 
-    // Handle both normal and obfuscated keys
-    const custom_id = raw.custom_id || raw.a || null;
-    const page_url = raw.page_url || raw.b || null;
-    const referrer = raw.referrer || raw.c || null;
-    const user_agent = raw.user_agent || raw.d || null;
-    const device_type = raw.device_type || raw.e || null;
-    const browser = raw.browser || raw.f || null;
-    const os = raw.os || raw.g || null;
-    const screen_resolution = raw.screen_resolution || raw.h || null;
-    const custom_metadata = raw.custom_metadata || raw.i || {};
+    // Obfuscated fields
+    const {
+      cid,     // custom_id
+      u,       // page_url
+      r,       // referrer
+      ua,      // user_agent
+      dt,      // device_type (M/D)
+      b,       // browser
+      os,      // os
+      sr,      // screen_resolution
+      cm       // custom_metadata (includes _r)
+    } = body;
 
     const ip =
       event.headers["x-forwarded-for"]?.split(",")[0] ||
       event.headers["client-ip"] ||
       "unknown";
 
-    let country = null,
-      region = null,
-      city = null;
-
+    // Location lookup
+    let country = null, region = null, city = null;
     try {
       const res = await fetch(`https://ipinfo.io/${ip}?token=d9a93a74769916`);
       const geo = await res.json();
@@ -60,31 +60,32 @@ exports.handler = async (event) => {
       console.error("Geo lookup failed:", geoErr);
     }
 
+    // Insert event
     const { data, error } = await supabase.from("events").insert([
       {
-        event: custom_metadata?.event || "viewPage",
-        page_url,
-        referrer,
-        user_agent,
+        event: "viewPage",
+        page_url: u,
+        referrer: r,
+        user_agent: ua,
         ip_address: ip,
-        custom_id,
-        device_type,
-        browser,
-        os,
-        screen_resolution,
+        custom_id: cid || null,
+        device_type: dt === "M" ? "Mobile" : "Desktop",
+        browser: b || null,
+        os: os || null,
+        screen_resolution: sr || null,
         country,
         region,
         city,
-        custom_metadata,
+        custom_metadata: cm || {},
         device_info: {
-          device_type,
-          browser,
-          os,
-          screen_resolution,
-          ...custom_metadata,
+          device_type: dt === "M" ? "Mobile" : "Desktop",
+          browser: b || null,
+          os: os || null,
+          screen_resolution: sr || null,
+          ...cm
         },
         os_name: os || null,
-        browser_name: browser || null,
+        browser_name: b || null,
       },
     ]);
 
