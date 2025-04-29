@@ -1,11 +1,11 @@
 const { createClient } = require("@supabase/supabase-js");
+const fetch = require("node-fetch");
 
 const supabase = createClient(
   "https://nandqoilqwsepborxkrz.supabase.co",
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hbmRxb2lscXdzZXBib3J4a3J6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUzNTkwODAsImV4cCI6MjA2MDkzNTA4MH0.FU7khFN_ESgFTFETWcyTytqcaCQFQzDB6LB5CzVQiOg"
 );
 
-// Get geo data using ipinfo.io
 async function getGeoFromIP(ip) {
   try {
     const res = await fetch(`https://ipinfo.io/${ip}?token=d9a93a74769916`);
@@ -16,13 +16,12 @@ async function getGeoFromIP(ip) {
       region: json.region || null,
       city: json.city || null
     };
-  } catch {
+  } catch (err) {
     return {};
   }
 }
 
 exports.handler = async (event) => {
-  // Handle preflight (OPTIONS) request for CORS
   if (event.httpMethod === "OPTIONS") {
     return {
       statusCode: 204,
@@ -61,9 +60,11 @@ exports.handler = async (event) => {
     } = body;
 
     const ip =
-      event.headers["x-forwarded-for"]?.split(",")[0]?.trim() || null;
+      event.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
+      event.headers["client-ip"] ||
+      null;
 
-    const geo = await getGeoFromIP(ip);
+    const geo = ip ? await getGeoFromIP(ip) : {};
 
     const { data, error } = await supabase.from("events").insert([
       {
@@ -86,7 +87,7 @@ exports.handler = async (event) => {
         os_version: device_info?.os_version || null,
         browser_name: device_info?.browser_name || null,
         browser_version: device_info?.browser_version || null
-      },
+      }
     ]);
 
     if (error) {
