@@ -1,4 +1,5 @@
 const { createClient } = require("@supabase/supabase-js");
+const fetch = require("node-fetch");
 
 const supabase = createClient(
   "https://nandqoilqwsepborxkrz.supabase.co",
@@ -6,12 +7,11 @@ const supabase = createClient(
 );
 
 exports.handler = async (event) => {
-  // Handle preflight (OPTIONS) request for CORS
   if (event.httpMethod === "OPTIONS") {
     return {
       statusCode: 204,
       headers: {
-        "Access-Control-Allow-Origin": "*", // Or restrict to specific domains
+        "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "POST, OPTIONS",
         "Access-Control-Allow-Headers": "Content-Type",
       },
@@ -19,7 +19,6 @@ exports.handler = async (event) => {
     };
   }
 
-  // Only allow POST
   if (event.httpMethod !== "POST") {
     return {
       statusCode: 405,
@@ -30,8 +29,34 @@ exports.handler = async (event) => {
 
   try {
     const body = JSON.parse(event.body);
+    const {
+      page_url,
+      referrer,
+      user_agent,
+      device_info,
+      event: eventName,
+      custom_id,
+      screen_resolution,
+    } = body;
 
-    const { page_url, referrer, user_agent, device_info, event: eventName } = body;
+    // Extract IP address from headers
+    const ip =
+      event.headers["x-forwarded-for"]?.split(",")[0] ||
+      event.headers["client-ip"] ||
+      null;
+
+    // Get geolocation data from IP
+    let geo = {};
+    if (ip) {
+      try {
+        const geoRes = await fetch(`https://ipapi.co/${ip}/json/`);
+        geo = await geoRes.json();
+      } catch (geoErr) {
+        console.error("Geo lookup failed:", geoErr.message);
+      }
+    }
+
+    const { country_name, region, city } = geo;
 
     const { data, error } = await supabase.from("events").insert([
       {
@@ -39,10 +64,17 @@ exports.handler = async (event) => {
         page_url,
         referrer,
         user_agent,
+        ip_address: ip,
+        custom_id,
+        screen_resolution,
+        country: country_name || null,
+        region: region || null,
+        city: city || null,
         device_info: device_info || {},
         device_type: device_info?.device_type || null,
         os_name: device_info?.os_name || null,
         browser_name: device_info?.browser_name || null,
+        browser_version: device_info?.browser_version || null,
       },
     ]);
 
