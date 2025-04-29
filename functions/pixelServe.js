@@ -1,5 +1,6 @@
 exports.handler = async (event) => {
   const id = event.queryStringParameters?.id || "unknown";
+  const customEvent = event.queryStringParameters?.event || "viewPage";
 
   const script = `(function(){
     try {
@@ -9,61 +10,51 @@ exports.handler = async (event) => {
         localStorage.setItem("retarglow_id", rid);
       }
 
-      function parseDeviceInfo(ua) {
-        let device_type = /Mobi|Android/i.test(ua) ? "Mobile" : "Desktop";
-        let browser_name = "Unknown", browser_version = "Unknown";
-        let os_name = "Unknown", os_version = "Unknown";
-
-        if (/Chrome/.test(ua)) {
-          browser_name = "Chrome";
-          browser_version = ua.match(/Chrome\\/([\\d.]+)/)?.[1] || "Unknown";
-        } else if (/Safari/.test(ua)) {
-          browser_name = "Safari";
-          browser_version = ua.match(/Version\\/([\\d.]+)/)?.[1] || "Unknown";
-        } else if (/Firefox/.test(ua)) {
-          browser_name = "Firefox";
-          browser_version = ua.match(/Firefox\\/([\\d.]+)/)?.[1] || "Unknown";
+      function parseUA() {
+        var ua = navigator.userAgent;
+        var tem;
+        var M = ua.match(/(opera|chrome|safari|firefox|edge|trident(?=\\/))\\/\\s*([\\d.]+)/i) || [];
+        if (/trident/i.test(M[1])) {
+          tem = /\brv[ :]+(\d+)/g.exec(ua) || [];
+          return { name: "IE", version: tem[1] || "" };
         }
-
-        if (/Windows NT/.test(ua)) {
-          os_name = "Windows";
-          os_version = ua.match(/Windows NT ([\\d.]+)/)?.[1] || "Unknown";
-        } else if (/Mac OS X/.test(ua)) {
-          os_name = "macOS";
-          os_version = ua.match(/Mac OS X ([\\d_]+)/)?.[1]?.replace(/_/g, ".") || "Unknown";
-        } else if (/Android/.test(ua)) {
-          os_name = "Android";
-          os_version = ua.match(/Android ([\\d.]+)/)?.[1] || "Unknown";
-        } else if (/iPhone OS/.test(ua)) {
-          os_name = "iOS";
-          os_version = ua.match(/iPhone OS ([\\d_]+)/)?.[1]?.replace(/_/g, ".") || "Unknown";
+        if (M[1] === "Chrome") {
+          tem = ua.match(/(OPR|Edg|Edge)\\/(\\d+)/);
+          if (tem != null) return { name: tem[1].replace("OPR", "Opera"), version: tem[2] };
         }
-
-        return { device_type, os_name, os_version, browser_name, browser_version };
+        M = M.length ? [M[1], M[2]] : [navigator.appName, navigator.appVersion, "-?"];
+        return { name: M[0], version: M[1] };
       }
 
-      var deviceInfo = parseDeviceInfo(navigator.userAgent);
+      var os = navigator.platform;
+      var browserInfo = parseUA();
 
       var payload = {
         custom_id: "${id}",
+        event: "${customEvent}",
         page_url: window.location.href,
         referrer: document.referrer,
         user_agent: navigator.userAgent,
+        device_type: /Mobi|Android/i.test(navigator.userAgent) ? "Mobile" : "Desktop",
+        browser: browserInfo.name,
+        os: os,
         screen_resolution: window.screen.width + "x" + window.screen.height,
-        custom_metadata: {
-          retarglow_id: rid
-        },
-        device_info: deviceInfo
+        custom_metadata: { retarglow_id: rid },
+        device_info: {
+          device_type: /Mobi|Android/i.test(navigator.userAgent) ? "Mobile" : "Desktop",
+          browser_name: browserInfo.name,
+          browser_version: browserInfo.version,
+          os_name: os,
+          os_version: "unknown"
+        }
       };
 
       fetch("https://retarglow.com/.netlify/functions/track", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-    } catch(e) { console.error("Retarglow error", e); }
+    } catch(e) {}
   })();`;
 
   return {
@@ -72,6 +63,6 @@ exports.handler = async (event) => {
       "Content-Type": "application/javascript",
       "Access-Control-Allow-Origin": "*"
     },
-    body: script,
+    body: script
   };
 };
