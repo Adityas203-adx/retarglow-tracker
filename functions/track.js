@@ -30,42 +30,39 @@ exports.handler = async (event) => {
   try {
     const body = JSON.parse(event.body);
 
+    // Mapping obfuscated fields (aligned with updated pixelserve.js)
     const {
-      custom_id,
-      page_url,
-      referrer,
-      user_agent,
-      device_type,
-      browser,
-      os,
-      screen_resolution,
-      custom_metadata,
+      a: custom_id,
+      b: page_url,
+      c: referrer,
+      d: user_agent,
+      e: device_type,
+      f: browser,
+      g: os,
+      h: screen_resolution,
+      i: custom_metadata,
     } = body;
 
-    // Extract IP
     const ip =
       event.headers["x-forwarded-for"]?.split(",")[0] ||
       event.headers["client-ip"] ||
       "unknown";
 
-    // IPInfo lookup
+    // Use free IP geolocation service ipapi.co
     let country = null,
       region = null,
       city = null;
 
     try {
-      const res = await fetch(
-        `https://ipinfo.io/${ip}?token=d9a93a74769916`
-      );
+      const res = await fetch(`https://ipapi.co/${ip}/json/`);
       const geo = await res.json();
-      country = geo.country || null;
+      country = geo.country_name || null;
       region = geo.region || null;
       city = geo.city || null;
     } catch (geoErr) {
       console.error("Geo lookup failed:", geoErr);
     }
 
-    // Insert to Supabase
     const { data, error } = await supabase.from("events").insert([
       {
         event: custom_metadata?.event || "viewPage",
@@ -91,6 +88,8 @@ exports.handler = async (event) => {
         },
         os_name: os || null,
         browser_name: browser || null,
+        browser_version: custom_metadata?.browser_version || null,
+        os_version: custom_metadata?.os_version || null,
       },
     ]);
 
