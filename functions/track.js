@@ -28,49 +28,43 @@ exports.handler = async (event) => {
   }
 
   try {
-    const body = JSON.parse(event.body);
+    const ip =
+      event.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
+      event.headers["client-ip"] ||
+      "0.0.0.0";
+
+    const geoRes = await fetch(`https://ipapi.co/${ip}/json/`);
+    const geoData = await geoRes.json();
 
     const {
-      custom_id,
+      country = null,
+      region = null,
+      city = null,
+    } = geoData;
+
+    const body = JSON.parse(event.body);
+    const {
       page_url,
       referrer,
       user_agent,
       device_type,
-      browser,
       os,
+      browser,
       screen_resolution,
       custom_metadata,
+      device_info,
+      event: eventName,
+      custom_id,
     } = body;
-
-    const ip =
-      event.headers["x-forwarded-for"]?.split(",")[0] ||
-      event.headers["client-ip"] ||
-      "unknown";
-
-    let country = null,
-      region = null,
-      city = null;
-
-    try {
-      const res = await fetch(
-        `https://ipinfo.io/${ip}?token=YOUR_IPINFO_TOKEN`
-      );
-      const geo = await res.json();
-      country = geo.country || null;
-      region = geo.region || null;
-      city = geo.city || null;
-    } catch (geoErr) {
-      console.error("Geo lookup failed:", geoErr);
-    }
 
     const { data, error } = await supabase.from("events").insert([
       {
-        event: custom_metadata?.event || "viewPage",
+        event: eventName || "viewPage",
         page_url,
         referrer,
         user_agent,
         ip_address: ip,
-        custom_id: custom_id || null,
+        custom_id: custom_id || "unknown",
         device_type,
         browser,
         os,
@@ -78,21 +72,16 @@ exports.handler = async (event) => {
         country,
         region,
         city,
-        custom_metadata,
-        device_info: {
-          device_type,
-          browser,
-          os,
-          screen_resolution,
-          ...custom_metadata,
-        },
-        os_name: os || null,
-        browser_name: browser || null,
+        custom_metadata: custom_metadata || {},
+        device_info: device_info || {},
+        os_name: device_info?.os_name || null,
+        os_version: device_info?.os_version || null,
+        browser_name: device_info?.browser_name || null,
+        browser_version: device_info?.browser_version || null,
       },
     ]);
 
     if (error) {
-      console.error("Supabase insert error:", error);
       return {
         statusCode: 500,
         headers: { "Access-Control-Allow-Origin": "*" },
@@ -106,7 +95,6 @@ exports.handler = async (event) => {
       body: JSON.stringify({ message: "Event logged", data }),
     };
   } catch (err) {
-    console.error("Request error:", err);
     return {
       statusCode: 400,
       headers: { "Access-Control-Allow-Origin": "*" },
