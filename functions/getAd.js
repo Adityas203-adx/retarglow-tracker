@@ -2,38 +2,8 @@ const { createClient } = require("@supabase/supabase-js");
 
 const supabase = createClient(
   "https://nandqoilqwsepborxkrz.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hbmRxb2lscXdzZXBib3J4a3J6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUzNTkwODAsImV4cCI6MjA2MDkzNTA4MH0.FU7khFN_ESgFTFETWcyTytqcaCQFQzDB6LB5CzVQiOg"
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hbmRxb2lscXdzZXBib3J4a3J6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUzNTkwODAsImV4cCI6MjA2MDkzNTA4MH0.FU7khFN_ESgFTFETWcyTytqcaCQFQzDB6LB5CzVQiOg" // Replace with your real anon key
 );
-
-// Utility to extract domain
-const extractDomain = (url) => {
-  try {
-    return new URL(url).hostname.replace("www.", "");
-  } catch {
-    return null;
-  }
-};
-
-// Check if user matches campaign's audience rules
-function doesMatch(rules = {}, metadata = {}) {
-  for (const key in rules) {
-    const ruleValue = rules[key];
-    let userValue = metadata[key];
-
-    if (key === "domain" && metadata.page_url) {
-      userValue = extractDomain(metadata.page_url);
-    }
-
-    if (!userValue) return false;
-
-    if (Array.isArray(ruleValue)) {
-      if (!ruleValue.includes(userValue)) return false;
-    } else if (ruleValue !== userValue) {
-      return false;
-    }
-  }
-  return true;
-}
 
 exports.handler = async (event) => {
   if (event.httpMethod !== "POST") {
@@ -44,40 +14,62 @@ exports.handler = async (event) => {
   }
 
   try {
-    const metadata = JSON.parse(event.body);
+    const {
+      page_url,
+      referrer,
+      country,
+      region,
+      city,
+      custom_metadata,
+    } = JSON.parse(event.body);
 
+    // Fetch active campaigns
     const { data: campaigns, error } = await supabase
       .from("campaigns")
       .select("*")
-      .eq("is_active", true);
+      .eq("status", "active");
 
-    if (error) throw error;
+    if (error) {
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ message: "Error loading campaigns", error }),
+      };
+    }
 
-    // Find the first matching campaign
-    const matched = campaigns.find((c) =>
-      doesMatch(c.audience_rules, metadata)
-    );
+    // Filter based on targeting
+    const matchedCampaign = campaigns.find((campaign) => {
+      const rules = campaign.audience_rules || {};
+      const countries = (campaign.country_targeting || "").split(",").map(c => c.trim().toLowerCase());
 
-    if (!matched) {
+      const domainMatch = rules.domain
+        ? page_url.includes(rules.domain)
+        : true;
+
+      const urlMatch = rules.url_contains
+        ? page_url.includes(rules.url_contains)
+        : true;
+
+      const countryMatch =
+        countries.length === 0 || countries.includes((country || "").toLowerCase());
+
+      return domainMatch && urlMatch && countryMatch;
+    });
+
+    if (!matchedCampaign) {
       return {
         statusCode: 200,
-        body: JSON.stringify({ ad_url: null, message: "No matching campaign" }),
+        body: JSON.stringify({ ad_url: null }),
       };
     }
 
     return {
       statusCode: 200,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ad_url: matched.ad_url,
-        campaign_id: matched.id,
-      }),
+      body: JSON.stringify({ ad_url: matchedCampaign.ad_url }),
     };
   } catch (err) {
-    console.error("getAd error:", err);
     return {
-      statusCode: 500,
-      body: JSON.stringify({ error: err.message }),
+      statusCode: 400,
+      body: JSON.stringify({ message: "Invalid Request", error: err.message }),
     };
   }
 };
