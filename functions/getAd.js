@@ -1,0 +1,83 @@
+const { createClient } = require("@supabase/supabase-js");
+
+const supabase = createClient(
+  "https://nandqoilqwsepborxkrz.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hbmRxb2lscXdzZXBib3J4a3J6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUzNTkwODAsImV4cCI6MjA2MDkzNTA4MH0.FU7khFN_ESgFTFETWcyTytqcaCQFQzDB6LB5CzVQiOg"
+);
+
+// Utility to extract domain
+const extractDomain = (url) => {
+  try {
+    return new URL(url).hostname.replace("www.", "");
+  } catch {
+    return null;
+  }
+};
+
+// Check if user matches campaign's audience rules
+function doesMatch(rules = {}, metadata = {}) {
+  for (const key in rules) {
+    const ruleValue = rules[key];
+    let userValue = metadata[key];
+
+    if (key === "domain" && metadata.page_url) {
+      userValue = extractDomain(metadata.page_url);
+    }
+
+    if (!userValue) return false;
+
+    if (Array.isArray(ruleValue)) {
+      if (!ruleValue.includes(userValue)) return false;
+    } else if (ruleValue !== userValue) {
+      return false;
+    }
+  }
+  return true;
+}
+
+exports.handler = async (event) => {
+  if (event.httpMethod !== "POST") {
+    return {
+      statusCode: 405,
+      body: "Method Not Allowed",
+    };
+  }
+
+  try {
+    const metadata = JSON.parse(event.body);
+
+    const { data: campaigns, error } = await supabase
+      .from("campaigns")
+      .select("*")
+      .eq("is_active", true);
+
+    if (error) throw error;
+
+    // Find the first matching campaign
+    const matched = campaigns.find((c) =>
+      doesMatch(c.audience_rules, metadata)
+    );
+
+    if (!matched) {
+      return {
+        statusCode: 200,
+        body: JSON.stringify({ ad_url: null, message: "No matching campaign" }),
+      };
+    }
+
+    return {
+      statusCode: 200,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ad_url: matched.ad_url,
+        campaign_id: matched.id,
+      }),
+    };
+  } catch (err) {
+    console.error("getAd error:", err);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: err.message }),
+    };
+  }
+};
