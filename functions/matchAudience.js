@@ -14,24 +14,35 @@ const extractDomain = (url) => {
   }
 };
 
-// Evaluate if audience_rules match user metadata
+// Enhanced matching logic
 function doesMatch(rules = {}, metadata = {}) {
-  for (const key in rules) {
-    const ruleValue = rules[key];
-    let userValue = metadata[key];
+  const domain = metadata.page_url ? extractDomain(metadata.page_url) : null;
+  const pageUrl = metadata.page_url || "";
+  const customMetadata = metadata.custom_metadata || {};
 
-    if (key === "domain" && metadata.page_url) {
-      userValue = extractDomain(metadata.page_url);
-    }
+  // Match domain
+  if (rules.domain) {
+    const expectedDomains = Array.isArray(rules.domain) ? rules.domain : [rules.domain];
+    if (!domain || !expectedDomains.includes(domain)) return false;
+  }
 
-    if (!userValue) return false;
+  // Match page_url_contains
+  if (rules.page_url_contains) {
+    const patterns = Array.isArray(rules.page_url_contains)
+      ? rules.page_url_contains
+      : [rules.page_url_contains];
 
-    if (Array.isArray(ruleValue)) {
-      if (!ruleValue.includes(userValue)) return false;
-    } else if (ruleValue !== userValue) {
-      return false;
+    const matched = patterns.some((substr) => pageUrl.includes(substr));
+    if (!matched) return false;
+  }
+
+  // Match custom_metadata key-value pairs
+  if (rules.custom_metadata && typeof rules.custom_metadata === "object") {
+    for (const [key, expectedValue] of Object.entries(rules.custom_metadata)) {
+      if (customMetadata[key] !== expectedValue) return false;
     }
   }
+
   return true;
 }
 
