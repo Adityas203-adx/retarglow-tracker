@@ -2,10 +2,9 @@ const { createClient } = require("@supabase/supabase-js");
 
 const supabase = createClient(
   "https://nandqoilqwsepborxkrz.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hbmRxb2lscXdzZXBib3J4a3J6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUzNTkwODAsImV4cCI6MjA2MDkzNTA4MH0.FU7khFN_ESgFTFETWcyTytqcaCQFQzDB6LB5CzVQiOg"
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hbmRxb2lscXdzZXBib3J4a3J6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUzNTkwODAsImV4cCI6MjA2MDkzNTA4MH0.FU7khFN_ESgFTFETWcyTytqcaCQFQzDB6LB5CzVQiOg" // truncated for security
 );
 
-// Utility: normalize domain from full page URL
 const extractDomain = (url) => {
   try {
     return new URL(url).hostname.replace("www.", "");
@@ -14,44 +13,29 @@ const extractDomain = (url) => {
   }
 };
 
-// Enhanced matching logic
 function doesMatch(rules = {}, metadata = {}) {
-  const domain = metadata.page_url ? extractDomain(metadata.page_url) : null;
-  const pageUrl = metadata.page_url || "";
-  const customMetadata = metadata.custom_metadata || {};
+  for (const key in rules) {
+    const ruleValue = rules[key];
+    let userValue = metadata[key];
 
-  // Match domain
-  if (rules.domain) {
-    const expectedDomains = Array.isArray(rules.domain) ? rules.domain : [rules.domain];
-    if (!domain || !expectedDomains.includes(domain)) return false;
-  }
+    if (key === "domain" && metadata.page_url) {
+      userValue = extractDomain(metadata.page_url);
+    }
 
-  // Match page_url_contains
-  if (rules.page_url_contains) {
-    const patterns = Array.isArray(rules.page_url_contains)
-      ? rules.page_url_contains
-      : [rules.page_url_contains];
+    if (!userValue) return false;
 
-    const matched = patterns.some((substr) => pageUrl.includes(substr));
-    if (!matched) return false;
-  }
-
-  // Match custom_metadata key-value pairs
-  if (rules.custom_metadata && typeof rules.custom_metadata === "object") {
-    for (const [key, expectedValue] of Object.entries(rules.custom_metadata)) {
-      if (customMetadata[key] !== expectedValue) return false;
+    if (Array.isArray(ruleValue)) {
+      if (!ruleValue.includes(userValue)) return false;
+    } else if (ruleValue !== userValue) {
+      return false;
     }
   }
-
   return true;
 }
 
 exports.handler = async (event) => {
   if (event.httpMethod !== "POST") {
-    return {
-      statusCode: 405,
-      body: "Method Not Allowed",
-    };
+    return { statusCode: 405, body: "Method Not Allowed" };
   }
 
   try {
@@ -60,24 +44,23 @@ exports.handler = async (event) => {
     const { data: campaigns, error } = await supabase
       .from("campaigns")
       .select("*")
-      .eq("is_active", true);
+      .eq("status", "active");
 
     if (error) throw error;
 
-    const matchedCampaigns = campaigns.filter((campaign) =>
-      doesMatch(campaign.audience_rules, metadata)
+    const matchedCampaigns = campaigns.filter((c) =>
+      doesMatch(c.audience_rules, metadata)
     );
 
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ matchedCampaigns }),
+      body: JSON.stringify({ matchedCampaigns })
     };
   } catch (err) {
-    console.error("matchAudience error:", err);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: err.message }),
+      body: JSON.stringify({ error: err.message })
     };
   }
 };
