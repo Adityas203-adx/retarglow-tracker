@@ -6,7 +6,7 @@ const supabase = createClient(
 );
 
 exports.handler = async (event) => {
-  // Handle CORS preflight request
+  // Handle preflight OPTIONS request
   if (event.httpMethod === "OPTIONS") {
     return {
       statusCode: 200,
@@ -22,15 +22,15 @@ exports.handler = async (event) => {
   if (event.httpMethod !== "POST") {
     return {
       statusCode: 405,
-      headers: {
-        "Access-Control-Allow-Origin": "*"
-      },
+      headers: { "Access-Control-Allow-Origin": "*" },
       body: "Method Not Allowed"
     };
   }
 
   try {
     const { page_url, country, custom_metadata } = JSON.parse(event.body);
+    const safeCountry = (country || "").toLowerCase();
+    const safePageUrl = page_url || "";
 
     const { data: campaigns, error } = await supabase
       .from("campaigns")
@@ -38,41 +38,34 @@ exports.handler = async (event) => {
       .eq("status", "active");
 
     if (error) {
+      console.error("Supabase error:", error);
       return {
         statusCode: 500,
-        headers: {
-          "Access-Control-Allow-Origin": "*"
-        },
+        headers: { "Access-Control-Allow-Origin": "*" },
         body: JSON.stringify({ message: "Error loading campaigns", error })
       };
     }
 
     const matched = campaigns.find((c) => {
       const rules = c.audience_rules || {};
-      const matchDomain = rules.domain
-        ? page_url.includes(rules.domain)
-        : true;
+      const matchDomain = rules.domain ? safePageUrl.includes(rules.domain) : true;
       const matchCountry =
         !c.country_targeting ||
-        c.country_targeting.toLowerCase().split(",").includes(country.toLowerCase());
+        c.country_targeting.toLowerCase().split(",").includes(safeCountry);
 
       return matchDomain && matchCountry;
     });
 
     return {
       statusCode: 200,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Content-Type": "application/json"
-      },
+      headers: { "Access-Control-Allow-Origin": "*" },
       body: JSON.stringify({ ad_url: matched?.ad_url || null })
     };
   } catch (err) {
+    console.error("getAd function error:", err);
     return {
       statusCode: 400,
-      headers: {
-        "Access-Control-Allow-Origin": "*"
-      },
+      headers: { "Access-Control-Allow-Origin": "*" },
       body: JSON.stringify({ message: "Invalid Request", error: err.message })
     };
   }
