@@ -2,91 +2,77 @@ const { createClient } = require("@supabase/supabase-js");
 
 const supabase = createClient(
   "https://nandqoilqwsepborxkrz.supabase.co",
-  "YOUR_SUPABASE_ANON_KEY"
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hbmRxb2lscXdzZXBib3J4a3J6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUzNTkwODAsImV4cCI6MjA2MDkzNTA4MH0.FU7khFN_ESgFTFETWcyTytqcaCQFQzDB6LB5CzVQiOg"
 );
 
 exports.handler = async (event) => {
-  console.log("=== Incoming Request ===");
-  console.log("Method:", event.httpMethod);
-  console.log("Body:", event.body);
-
-  if (event.httpMethod === "OPTIONS") {
-    return {
-      statusCode: 200,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type"
-      },
-      body: ""
-    };
-  }
-
   if (event.httpMethod !== "POST") {
-    return {
-      statusCode: 405,
-      headers: { "Access-Control-Allow-Origin": "*" },
-      body: "Method Not Allowed"
-    };
+    return { statusCode: 405, body: "Method Not Allowed" };
   }
 
   try {
     const { page_url, country, custom_metadata } = JSON.parse(event.body);
-    console.log("Parsed payload:", { page_url, country, custom_metadata });
 
     const { data: campaigns, error } = await supabase
       .from("campaigns")
       .select("*")
-      .eq("status", "active");
+      .eq("status", true); // status is boolean
 
     if (error) {
-      console.error("Supabase query error:", error);
+      console.error("Supabase Error:", error);
       return {
         statusCode: 500,
-        headers: { "Access-Control-Allow-Origin": "*" },
-        body: JSON.stringify({ message: "Supabase error", error })
+        body: JSON.stringify({ message: "Error loading campaigns", error })
       };
     }
 
-    console.log("Loaded campaigns:", campaigns);
-
     const matched = campaigns.find((c) => {
+      // Handle audience_rules parsing
       let rules = {};
       try {
         rules = typeof c.audience_rules === "string"
           ? JSON.parse(c.audience_rules)
           : c.audience_rules || {};
-      } catch (e) {
-        console.warn("Invalid JSON in audience_rules:", c.audience_rules);
+      } catch (_) {
+        rules = {};
       }
 
-      const matchDomain = rules.domain ? page_url.includes(rules.domain) : true;
+      // Domain match
+      const matchDomain = rules.domain
+        ? page_url.includes(rules.domain)
+        : true;
 
-      const matchCountry = !c.target_countries ||
-        c.target_countries.toLowerCase().split(",").includes(country.toLowerCase());
-
-      console.log(`Campaign match check:`, {
-        campaign: c.name,
-        matchDomain,
-        matchCountry
-      });
+      // Country match
+      const tc = c.target_countries;
+      let matchCountry = true;
+      if (tc) {
+        if (Array.isArray(tc)) {
+          matchCountry = tc.map((x) => x.toLowerCase()).includes(country.toLowerCase());
+        } else if (typeof tc === "string") {
+          matchCountry = tc.toLowerCase().split(",").includes(country.toLowerCase());
+        }
+      }
 
       return matchDomain && matchCountry;
     });
 
-    console.log("Matched Campaign:", matched);
-
     return {
       statusCode: 200,
-      headers: { "Access-Control-Allow-Origin": "*" },
+      headers: {
+        "Access-Control-Allow-Origin": "*", // CORS support
+        "Access-Control-Allow-Headers": "Content-Type"
+      },
       body: JSON.stringify({ ad_url: matched?.ad_url || null })
     };
   } catch (err) {
-    console.error("Unhandled error:", err);
+    console.error("Handler Error:", err);
     return {
-      statusCode: 500,
-      headers: { "Access-Control-Allow-Origin": "*" },
-      body: JSON.stringify({ message: "Server error", error: err.message })
+      statusCode: 400,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type"
+      },
+      body: JSON.stringify({ message: "Invalid Request", error: err.message })
     };
   }
 };
