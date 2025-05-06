@@ -6,8 +6,27 @@ const supabase = createClient(
 );
 
 exports.handler = async (event) => {
+  const headers = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS"
+  };
+
+  // Handle preflight
+  if (event.httpMethod === "OPTIONS") {
+    return {
+      statusCode: 200,
+      headers,
+      body: "OK"
+    };
+  }
+
   if (event.httpMethod !== "POST") {
-    return { statusCode: 405, body: "Method Not Allowed" };
+    return {
+      statusCode: 405,
+      headers,
+      body: "Method Not Allowed"
+    };
   }
 
   try {
@@ -16,63 +35,42 @@ exports.handler = async (event) => {
     const { data: campaigns, error } = await supabase
       .from("campaigns")
       .select("*")
-      .eq("status", true); // status is boolean
+      .eq("status", true); // Use boolean true, not "active"
 
     if (error) {
-      console.error("Supabase Error:", error);
-      return {
-        statusCode: 500,
-        body: JSON.stringify({ message: "Error loading campaigns", error })
-      };
+      throw new Error(`Supabase error: ${error.message}`);
     }
 
     const matched = campaigns.find((c) => {
-      // Handle audience_rules parsing
-      let rules = {};
-      try {
-        rules = typeof c.audience_rules === "string"
-          ? JSON.parse(c.audience_rules)
-          : c.audience_rules || {};
-      } catch (_) {
-        rules = {};
-      }
+      const rules = c.audience_rules || {};
+      const targetCountries = c.target_countries || [];
 
-      // Domain match
       const matchDomain = rules.domain
         ? page_url.includes(rules.domain)
         : true;
 
-      // Country match
-      const tc = c.target_countries;
-      let matchCountry = true;
-      if (tc) {
-        if (Array.isArray(tc)) {
-          matchCountry = tc.map((x) => x.toLowerCase()).includes(country.toLowerCase());
-        } else if (typeof tc === "string") {
-          matchCountry = tc.toLowerCase().split(",").includes(country.toLowerCase());
-        }
-      }
+      const matchCountry = targetCountries.length === 0 ||
+        targetCountries.includes(country);
 
       return matchDomain && matchCountry;
     });
 
     return {
       statusCode: 200,
-      headers: {
-        "Access-Control-Allow-Origin": "*", // CORS support
-        "Access-Control-Allow-Headers": "Content-Type"
-      },
+      headers,
       body: JSON.stringify({ ad_url: matched?.ad_url || null })
     };
   } catch (err) {
-    console.error("Handler Error:", err);
     return {
-      statusCode: 400,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "Content-Type"
-      },
-      body: JSON.stringify({ message: "Invalid Request", error: err.message })
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({
+        message: "Internal Server Error",
+        error: err.message,
+        debug: {
+          input: event.body
+        }
+      })
     };
   }
 };
