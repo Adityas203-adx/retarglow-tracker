@@ -6,7 +6,6 @@ const supabase = createClient(
 );
 
 exports.handler = async (event) => {
-  // Handle preflight OPTIONS request
   if (event.httpMethod === "OPTIONS") {
     return {
       statusCode: 200,
@@ -47,11 +46,19 @@ exports.handler = async (event) => {
     }
 
     const matched = campaigns.find((c) => {
-      const rules = c.audience_rules || {};
+      let rules = {};
+      try {
+        rules = typeof c.audience_rules === "string"
+          ? JSON.parse(c.audience_rules)
+          : c.audience_rules || {};
+      } catch (e) {
+        console.warn("Invalid JSON in audience_rules:", c.audience_rules);
+      }
+
       const matchDomain = rules.domain ? safePageUrl.includes(rules.domain) : true;
       const matchCountry =
-        !c.country_targeting ||
-        c.country_targeting.toLowerCase().split(",").includes(safeCountry);
+        !c.target_countries ||
+        c.target_countries.toLowerCase().split(",").includes(safeCountry);
 
       return matchDomain && matchCountry;
     });
@@ -62,11 +69,11 @@ exports.handler = async (event) => {
       body: JSON.stringify({ ad_url: matched?.ad_url || null })
     };
   } catch (err) {
-    console.error("getAd function error:", err);
+    console.error("Unexpected error:", err);
     return {
-      statusCode: 400,
+      statusCode: 500,
       headers: { "Access-Control-Allow-Origin": "*" },
-      body: JSON.stringify({ message: "Invalid Request", error: err.message })
+      body: JSON.stringify({ message: "Server error", error: err.message })
     };
   }
 };
