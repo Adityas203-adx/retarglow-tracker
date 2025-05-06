@@ -2,10 +2,14 @@ const { createClient } = require("@supabase/supabase-js");
 
 const supabase = createClient(
   "https://nandqoilqwsepborxkrz.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hbmRxb2lscXdzZXBib3J4a3J6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUzNTkwODAsImV4cCI6MjA2MDkzNTA4MH0.FU7khFN_ESgFTFETWcyTytqcaCQFQzDB6LB5CzVQiOg"
+  "YOUR_SUPABASE_ANON_KEY"
 );
 
 exports.handler = async (event) => {
+  console.log("=== Incoming Request ===");
+  console.log("Method:", event.httpMethod);
+  console.log("Body:", event.body);
+
   if (event.httpMethod === "OPTIONS") {
     return {
       statusCode: 200,
@@ -28,8 +32,7 @@ exports.handler = async (event) => {
 
   try {
     const { page_url, country, custom_metadata } = JSON.parse(event.body);
-    const safeCountry = (country || "").toLowerCase();
-    const safePageUrl = page_url || "";
+    console.log("Parsed payload:", { page_url, country, custom_metadata });
 
     const { data: campaigns, error } = await supabase
       .from("campaigns")
@@ -37,13 +40,15 @@ exports.handler = async (event) => {
       .eq("status", "active");
 
     if (error) {
-      console.error("Supabase error:", error);
+      console.error("Supabase query error:", error);
       return {
         statusCode: 500,
         headers: { "Access-Control-Allow-Origin": "*" },
-        body: JSON.stringify({ message: "Error loading campaigns", error })
+        body: JSON.stringify({ message: "Supabase error", error })
       };
     }
+
+    console.log("Loaded campaigns:", campaigns);
 
     const matched = campaigns.find((c) => {
       let rules = {};
@@ -55,13 +60,21 @@ exports.handler = async (event) => {
         console.warn("Invalid JSON in audience_rules:", c.audience_rules);
       }
 
-      const matchDomain = rules.domain ? safePageUrl.includes(rules.domain) : true;
-      const matchCountry =
-        !c.target_countries ||
-        c.target_countries.toLowerCase().split(",").includes(safeCountry);
+      const matchDomain = rules.domain ? page_url.includes(rules.domain) : true;
+
+      const matchCountry = !c.target_countries ||
+        c.target_countries.toLowerCase().split(",").includes(country.toLowerCase());
+
+      console.log(`Campaign match check:`, {
+        campaign: c.name,
+        matchDomain,
+        matchCountry
+      });
 
       return matchDomain && matchCountry;
     });
+
+    console.log("Matched Campaign:", matched);
 
     return {
       statusCode: 200,
@@ -69,7 +82,7 @@ exports.handler = async (event) => {
       body: JSON.stringify({ ad_url: matched?.ad_url || null })
     };
   } catch (err) {
-    console.error("Unexpected error:", err);
+    console.error("Unhandled error:", err);
     return {
       statusCode: 500,
       headers: { "Access-Control-Allow-Origin": "*" },
