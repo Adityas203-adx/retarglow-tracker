@@ -16,7 +16,7 @@ exports.handler = async (event) => {
   }
 
   try {
-    // Get campaign by name
+    // Fetch campaign
     const { data: campaigns, error } = await supabase
       .from("campaigns")
       .select("*")
@@ -35,9 +35,17 @@ exports.handler = async (event) => {
       };
     }
 
-    const redirectUrl = campaign.ad_url;
+    // Construct redirect URL with referrer override if present
+    let redirectUrl = campaign.ad_url;
+    const refOverride = campaign.referrer_override;
 
-    // Log the click
+    if (refOverride) {
+      const url = new URL(redirectUrl);
+      url.searchParams.set("ref", refOverride);
+      redirectUrl = url.toString();
+    }
+
+    // Log click
     const ip =
       event.headers["x-forwarded-for"] ||
       event.headers["client-ip"] ||
@@ -53,6 +61,7 @@ exports.handler = async (event) => {
       },
     ]);
 
+    // Redirect to ad_url
     return {
       statusCode: 302,
       headers: {
