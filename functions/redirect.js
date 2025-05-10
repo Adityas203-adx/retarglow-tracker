@@ -1,4 +1,5 @@
 const { createClient } = require("@supabase/supabase-js");
+const fetch = require("node-fetch");
 
 const supabase = createClient(
   "https://nandqoilqwsepborxkrz.supabase.co",
@@ -6,9 +7,9 @@ const supabase = createClient(
 );
 
 exports.handler = async (event) => {
-  const ad_name = event.queryStringParameters.ad_id;
+  const adName = event.queryStringParameters.ad_id;
 
-  if (!ad_name) {
+  if (!adName) {
     return {
       statusCode: 400,
       body: JSON.stringify({ message: "Missing ad_id" }),
@@ -16,26 +17,21 @@ exports.handler = async (event) => {
   }
 
   try {
-    // Fetch campaign
     const { data: campaigns, error } = await supabase
       .from("campaigns")
       .select("*")
-      .eq("name", ad_name)
+      .eq("name", adName)
       .limit(1);
 
-    const campaign = campaigns && campaigns.length > 0 ? campaigns[0] : null;
+    const campaign = campaigns?.[0];
 
     if (error || !campaign) {
       return {
         statusCode: 404,
-        body: JSON.stringify({
-          message: "Ad not found",
-          error,
-        }),
+        body: JSON.stringify({ message: "Ad not found", error }),
       };
     }
 
-    // Construct redirect URL with referrer override if present
     let redirectUrl = campaign.ad_url;
     const refOverride = campaign.referrer_override;
 
@@ -45,27 +41,46 @@ exports.handler = async (event) => {
       redirectUrl = url.toString();
     }
 
-    // Log click
+    // Extract IP and UA
     const ip =
-      event.headers["x-forwarded-for"] ||
+      event.headers["x-forwarded-for"]?.split(",")[0] ||
       event.headers["client-ip"] ||
-      event.headers["x-real-ip"] ||
       "unknown";
+    const ua = event.headers["user-agent"] || "";
 
-    await supabase.from("clicks").insert([
-      {
-        ad_id: campaign.name,
-        redirect_url: redirectUrl,
-        ip_address: ip,
-        timestamp: new Date().toISOString(),
-      },
-    ]);
+    // Optional: bot filtering (basic)
+    const isBot = /bot|crawl|spider|slurp|headless/i.test(ua);
+    if (!isBot) {
+      // Optional: add geo enrichment
+      let country = null, region = null, city = null;
+      try {
+        const geoRes = await fetch(`https://ipinfo.io/${ip}?token=d9a93a74769916`);
+        const geo = await geoRes.json();
+        country = geo.country || null;
+        region = geo.region || null;
+        city = geo.city || null;
+      } catch (geoErr) {}
 
-    // Redirect to ad_url
+      await supabase.from("clicks").insert([
+        {
+          ad_id: campaign.name,
+          redirect_url: redirectUrl,
+          ip_address: ip,
+          user_agent: ua,
+          country,
+          region,
+          city,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+    }
+
     return {
       statusCode: 302,
       headers: {
         Location: redirectUrl,
+        "Cache-Control": "no-cache",
+        "Access-Control-Allow-Origin": "*"
       },
     };
   } catch (err) {
