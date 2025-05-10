@@ -3,6 +3,7 @@ const { createClient } = require("@supabase/supabase-js");
 const supabase = createClient(
   "https://nandqoilqwsepborxkrz.supabase.co",
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hbmRxb2lscXdzZXBib3J4a3J6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUzNTkwODAsImV4cCI6MjA2MDkzNTA4MH0.FU7khFN_ESgFTFETWcyTytqcaCQFQzDB6LB5CzVQiOg"
+"
 );
 
 exports.handler = async (event) => {
@@ -12,47 +13,43 @@ exports.handler = async (event) => {
     "Access-Control-Allow-Methods": "POST, OPTIONS"
   };
 
-  // Handle preflight
   if (event.httpMethod === "OPTIONS") {
-    return {
-      statusCode: 200,
-      headers,
-      body: "OK"
-    };
+    return { statusCode: 200, headers, body: "OK" };
   }
 
   if (event.httpMethod !== "POST") {
-    return {
-      statusCode: 405,
-      headers,
-      body: "Method Not Allowed"
-    };
+    return { statusCode: 405, headers, body: "Method Not Allowed" };
   }
 
   try {
-    const { page_url, country, custom_metadata } = JSON.parse(event.body);
+    const { u: page_url, cm = {}, country } = JSON.parse(event.body);
 
     const { data: campaigns, error } = await supabase
       .from("campaigns")
       .select("*")
-      .eq("status", true); // Use boolean true, not "active"
+      .eq("status", true);
 
-    if (error) {
-      throw new Error(`Supabase error: ${error.message}`);
-    }
+    if (error) throw new Error(`Supabase error: ${error.message}`);
 
     const matched = campaigns.find((c) => {
       const rules = c.audience_rules || {};
-      const targetCountries = c.target_countries || [];
+      const countries = c.target_countries || [];
 
       const matchDomain = rules.domain
-        ? page_url.includes(rules.domain)
+        ? page_url?.includes(rules.domain)
         : true;
 
-      const matchCountry = targetCountries.length === 0 ||
-        targetCountries.includes(country);
+      const matchCountry = countries.length === 0 || countries.includes(country);
 
-      return matchDomain && matchCountry;
+      const matchBrowser = rules.browser
+        ? cm.b === rules.browser
+        : true;
+
+      const matchDevice = rules.device_type
+        ? cm.dt === rules.device_type
+        : true;
+
+      return matchDomain && matchCountry && matchBrowser && matchDevice;
     });
 
     return {
@@ -67,9 +64,7 @@ exports.handler = async (event) => {
       body: JSON.stringify({
         message: "Internal Server Error",
         error: err.message,
-        debug: {
-          input: event.body
-        }
+        debug: { input: event.body }
       })
     };
   }
