@@ -1,11 +1,21 @@
 {
   "name": "retarglow-tracker",
   "version": "1.0.0",
+  "description": "Serverless tracking and ad delivery backend for Retarglow",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "dev": "netlify dev",
+    "build": "echo 'No build step needed'",
+    "start": "netlify functions:serve"
+  },
   "dependencies": {
-    "@supabase/supabase-js": "^2.0.0",
-    "cookie": "^0.5.0",
-    "node-fetch": "^2.6.1",
-    "uuid": "^9.0.0",
-    "ua-parser-js": "^1.0.0"
-  }
+    "@supabase/supabase-js": "^2.39.5",
+    "node-fetch": "^2.6.11",
+    "ua-parser-js": "^1.0.35"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "license": "MIT"
 }
