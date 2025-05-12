@@ -1,4 +1,4 @@
-yes and here is track.js - const { createClient } = require("@supabase/supabase-js");
+const { createClient } = require("@supabase/supabase-js");
 const fetch = require("node-fetch");
 
 const supabase = createClient(
