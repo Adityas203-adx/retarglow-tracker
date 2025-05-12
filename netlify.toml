@@ -2,36 +2,42 @@
   functions = "functions"
   publish = "/"
 
-# Pixel delivery
-[[redirects]]
-  from = "/loadscript/:id"
-  to = "/.netlify/functions/pixelServe/:id"
-  status = 200
-
+# === Pixel Script Delivery ===
 [[redirects]]
   from = "/pixel"
   to = "/.netlify/functions/pixelServe"
   status = 200
+  force = true
 
 [[redirects]]
   from = "/pixel/:id"
   to = "/.netlify/functions/pixelServe/:id"
   status = 200
+  force = true
 
-# Track endpoint
+[[redirects]]
+  from = "/loadscript/:id"
+  to = "/.netlify/functions/pixelServe/:id"
+  status = 200
+  force = true
+
+# === Tracking Endpoint ===
 [[redirects]]
   from = "/track"
   to = "/.netlify/functions/track"
   status = 200
+  force = true
 
-# Ad fetch logic
+# === Get Matching Ad ===
 [[redirects]]
   from = "/getad"
   to = "/.netlify/functions/getad"
   status = 200
+  force = true
 
-# Redirect + click log
+# === Click Redirect & Logging ===
 [[redirects]]
   from = "/redirect"
   to = "/.netlify/functions/redirect"
   status = 200
+  force = true
