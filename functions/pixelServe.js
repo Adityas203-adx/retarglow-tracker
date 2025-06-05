@@ -5,7 +5,8 @@ exports.handler = async (event) => {
   };
 
   try {
-    const id = event.pathParameters?.id || "";
+    // Use default campaign ID if not provided
+    const id = event.pathParameters?.id || "default-campaign";
 
     const js = `!function(){
   try {
