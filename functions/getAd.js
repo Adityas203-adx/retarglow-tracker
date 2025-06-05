@@ -22,10 +22,18 @@ exports.handler = async (event) => {
 
   try {
     const { page_url, country, custom_metadata = {} } = JSON.parse(event.body);
+    const _r = custom_metadata._r;
 
-    // Log for debug purposes
-    console.log("📩 Incoming Request", { page_url, country, custom_metadata });
+    // Step 1: Validate if _r is a known tracked user
+    const { data: pastEvents, error: eventErr } = await supabase
+      .from("events")
+      .select("id")
+      .eq("custom_metadata->_r", _r)
+      .limit(1);
 
+    const isReturningVisitor = pastEvents && pastEvents.length > 0;
+
+    // Step 2: Fetch all active campaigns
     const { data: campaigns, error } = await supabase
       .from("campaigns")
       .select("*")
@@ -51,13 +59,16 @@ exports.handler = async (event) => {
         ? custom_metadata.dt === rules.device_type
         : true;
 
-      return matchDomain && matchCountry && matchBrowser && matchDevice;
+      const matchRetargeting =
+        c.audience_type === "retarget" ? isReturningVisitor : true;
+
+      return matchDomain && matchCountry && matchBrowser && matchDevice && matchRetargeting;
     });
 
     if (matched) {
-      console.log("✅ Matched Campaign:", matched.name, "URL:", matched.ad_url);
+      console.log("✅ Matched Campaign:", matched.name);
     } else {
-      console.warn("⚠️ No campaign matched the user.");
+      console.warn("⚠️ No campaign matched.");
     }
 
     return {
