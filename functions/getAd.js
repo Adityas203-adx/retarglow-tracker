@@ -21,7 +21,10 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { u: page_url, cm = {}, country } = JSON.parse(event.body);
+    const { page_url, country, custom_metadata = {} } = JSON.parse(event.body);
+
+    // Log for debug purposes
+    console.log("📩 Incoming Request", { page_url, country, custom_metadata });
 
     const { data: campaigns, error } = await supabase
       .from("campaigns")
@@ -41,15 +44,21 @@ exports.handler = async (event) => {
       const matchCountry = countries.length === 0 || countries.includes(country);
 
       const matchBrowser = rules.browser
-        ? cm.b === rules.browser
+        ? custom_metadata.b === rules.browser
         : true;
 
       const matchDevice = rules.device_type
-        ? cm.dt === rules.device_type
+        ? custom_metadata.dt === rules.device_type
         : true;
 
       return matchDomain && matchCountry && matchBrowser && matchDevice;
     });
+
+    if (matched) {
+      console.log("✅ Matched Campaign:", matched.name, "URL:", matched.ad_url);
+    } else {
+      console.warn("⚠️ No campaign matched the user.");
+    }
 
     return {
       statusCode: 200,
@@ -57,13 +66,13 @@ exports.handler = async (event) => {
       body: JSON.stringify({ ad_url: matched?.ad_url || null })
     };
   } catch (err) {
+    console.error("❌ getAd Error:", err.message);
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({
         message: "Internal Server Error",
-        error: err.message,
-        debug: { input: event.body }
+        error: err.message
       })
     };
   }
