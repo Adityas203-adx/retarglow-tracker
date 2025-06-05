@@ -31,7 +31,7 @@
 # === Get Matching Ad ===
 [[redirects]]
   from = "/getad"
-  to = "/.netlify/functions/getad"
+  to = "/.netlify/functions/getAd"
   status = 200
   force = true
 
