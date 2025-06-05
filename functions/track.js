@@ -13,45 +13,23 @@ const corsHeaders = {
 };
 
 exports.handler = async (event) => {
-  // Handle CORS preflight
   if (event.httpMethod === "OPTIONS") {
-    return {
-      statusCode: 204,
-      headers: corsHeaders,
-      body: ""
-    };
+    return { statusCode: 204, headers: corsHeaders, body: "" };
   }
 
-  // Only allow POST
   if (event.httpMethod !== "POST") {
-    return {
-      statusCode: 405,
-      headers: corsHeaders,
-      body: "Method Not Allowed"
-    };
+    return { statusCode: 405, headers: corsHeaders, body: "Method Not Allowed" };
   }
 
   try {
     const body = JSON.parse(event.body);
-
-    const {
-      cid, // custom_id
-      u,   // page_url
-      r,   // referrer
-      ua,  // user_agent
-      dt,  // device_type (M/D)
-      b,   // browser
-      os,  // os
-      sr,  // screen_resolution
-      cm   // custom_metadata (includes _r)
-    } = body;
+    const { cid, u, r, ua, dt, b, os, sr, cm } = body;
 
     const ip =
       event.headers["x-forwarded-for"]?.split(",")[0] ||
       event.headers["client-ip"] ||
       "unknown";
 
-    // Geolocation via IP
     let country = null, region = null, city = null;
     try {
       const res = await fetch(`https://ipinfo.io/${ip}?token=d9a93a74769916`);
@@ -63,7 +41,7 @@ exports.handler = async (event) => {
       console.error("Geo lookup failed:", geoErr.message);
     }
 
-    // Insert into Supabase
+    // Insert viewPage event
     const { data, error } = await supabase.from("events").insert([
       {
         event: "viewPage",
@@ -99,6 +77,23 @@ exports.handler = async (event) => {
         headers: corsHeaders,
         body: JSON.stringify({ message: "Database error", error: error.message })
       };
+    }
+
+    
+    try {
+      const adRes = await fetch("https://retarglow.com/getad", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ u, country, cm })
+      });
+
+      const { ad_url } = await adRes.json();
+
+      if (ad_url) {
+        await fetch(`https://retarglow.com/redirect?url=${encodeURIComponent(ad_url)}`);
+      }
+    } catch (adErr) {
+      console.error("Ad injection failed:", adErr.message);
     }
 
     return {
