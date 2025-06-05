@@ -41,7 +41,7 @@ exports.handler = async (event) => {
       console.error("Geo lookup failed:", geoErr.message);
     }
 
-    // Insert viewPage event
+    
     const { data, error } = await supabase.from("events").insert([
       {
         event: "viewPage",
