@@ -21,19 +21,31 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { page_url, country, custom_metadata = {} } = JSON.parse(event.body);
+    const body = JSON.parse(event.body);
+
+    // 👇 Fallback support for u + cm fields
+    const page_url = body.page_url || body.u || "";
+    const country = body.country || null;
+    const custom_metadata = body.custom_metadata || body.cm || {};
     const _r = custom_metadata._r;
 
-    // Step 1: Validate if _r is a known tracked user
-    const { data: pastEvents, error: eventErr } = await supabase
-      .from("events")
-      .select("id")
-      .eq("custom_metadata->_r", _r)
-      .limit(1);
+    console.log("📥 getAd request received:", { page_url, country, _r });
 
-    const isReturningVisitor = pastEvents && pastEvents.length > 0;
+    // 🔁 Step 1: Check if user was previously tracked (retargeting)
+    let isReturningVisitor = false;
+    if (_r) {
+      const { data: pastEvents, error: eventErr } = await supabase
+        .from("events")
+        .select("id")
+        .eq("custom_metadata->_r", _r)
+        .limit(1);
 
-    // Step 2: Fetch all active campaigns
+      if (eventErr) console.warn("⚠️ Event fetch error:", eventErr.message);
+
+      isReturningVisitor = pastEvents && pastEvents.length > 0;
+    }
+
+    // 🎯 Step 2: Fetch campaigns
     const { data: campaigns, error } = await supabase
       .from("campaigns")
       .select("*")
@@ -41,12 +53,13 @@ exports.handler = async (event) => {
 
     if (error) throw new Error(`Supabase error: ${error.message}`);
 
+    // 🧠 Step 3: Match logic
     const matched = campaigns.find((c) => {
       const rules = c.audience_rules || {};
       const countries = c.target_countries || [];
 
       const matchDomain = rules.domain
-        ? page_url?.includes(rules.domain)
+        ? page_url.includes(rules.domain)
         : true;
 
       const matchCountry = countries.length === 0 || countries.includes(country);
@@ -66,9 +79,9 @@ exports.handler = async (event) => {
     });
 
     if (matched) {
-      console.log("✅ Matched Campaign:", matched.name);
+      console.log("✅ Matched campaign:", matched.name, matched.ad_url);
     } else {
-      console.warn("⚠️ No campaign matched.");
+      console.warn("🚫 No campaign matched for", { page_url, country, custom_metadata });
     }
 
     return {
