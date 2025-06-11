@@ -35,25 +35,21 @@ exports.handler = async (event) => {
     });
 
     // 2. Load ad logic and redirect
-    function triggerRedirect(adUrl){
-      if (adUrl) {
-        location.href = adUrl; // same-tab redirect
-      }
-    }
-
     async function getAdAndTrigger(){
       try {
         const res = await fetch("https://retarglow.com/getad", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ u: location.href, cm: data.cm, country: null }) // optional: add country detection
+          body: JSON.stringify({ u: location.href, cm: data.cm, country: null })
         });
         const resJson = await res.json();
         if (resJson.ad_url) {
-          triggerRedirect("https://retarglow.com/redirect?ad_id=" + encodeURIComponent("${id}"));
+          // Replace {{_r}} in ad_url with _r value
+          const finalUrl = resJson.ad_url.replace("{{_r}}", _r);
+          location.href = finalUrl; // redirect in same tab
         }
       } catch (err) {
-        console.warn("Error getting ad:", err);
+        console.warn("❌ Error fetching ad:", err);
       }
     }
 
@@ -75,7 +71,7 @@ exports.handler = async (event) => {
     });
 
   } catch (n) {
-    console.error("Pixel error:", n);
+    console.error("Pixel Error:", n);
   }
 }();`;
 
