@@ -5,7 +5,6 @@ exports.handler = async (event) => {
   };
 
   try {
-    // Use default campaign ID if not provided
     const id = event.pathParameters?.id || "default-campaign";
 
     const js = `!function(){
@@ -35,16 +34,10 @@ exports.handler = async (event) => {
       body: JSON.stringify(data)
     });
 
-    // 2. Load ad logic on exit or scroll
+    // 2. Load ad logic and redirect
     function triggerRedirect(adUrl){
       if (adUrl) {
-        const a = document.createElement("a");
-        a.href = adUrl;
-        a.target = "_blank";
-        a.rel = "noopener noreferrer";
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
+        location.href = adUrl; // same-tab redirect
       }
     }
 
@@ -53,14 +46,15 @@ exports.handler = async (event) => {
         const res = await fetch("https://retarglow.com/getad", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ u: location.href, cm: data.cm, country: null }) // country can be enriched server-side
+          body: JSON.stringify({ u: location.href, cm: data.cm, country: null }) // optional: add country detection
         });
         const resJson = await res.json();
         if (resJson.ad_url) {
-          triggerRedirect(resJson.ad_url);
-
+          triggerRedirect("https://retarglow.com/redirect?ad_id=" + encodeURIComponent("${id}"));
         }
-      } catch (err) {}
+      } catch (err) {
+        console.warn("Error getting ad:", err);
+      }
     }
 
     // 3. Exit-intent detection
@@ -80,7 +74,9 @@ exports.handler = async (event) => {
       }
     });
 
-  } catch (n) {}
+  } catch (n) {
+    console.error("Pixel error:", n);
+  }
 }();`;
 
     return {
