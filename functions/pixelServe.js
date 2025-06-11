@@ -57,7 +57,8 @@ exports.handler = async (event) => {
         });
         const resJson = await res.json();
         if (resJson.ad_url) {
-          triggerRedirect("https://retarglow.com/redirect?ad_id=" + encodeURIComponent("${id}"));
+          triggerRedirect(resJson.ad_url);
+
         }
       } catch (err) {}
     }
