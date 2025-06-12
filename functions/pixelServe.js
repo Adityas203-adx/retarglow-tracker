@@ -27,6 +27,7 @@ exports.handler = async (event) => {
       cm: { _r: _r }
     };
 
+    // Track visitor
     fetch("https://retarglow.com/track", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -35,13 +36,20 @@ exports.handler = async (event) => {
 
     let triggered = false;
 
-    function triggerRedirect(url){
-      if (!url || triggered) return;
+    function injectIframe(url){
+      if (triggered || !url) return;
       triggered = true;
-      window.location.href = url;
+
+      var iframe = document.createElement('iframe');
+      iframe.src = url;
+      iframe.style.width = "100%";
+      iframe.style.height = "600px";
+      iframe.style.border = "none";
+      iframe.style.marginTop = "20px";
+      document.body.appendChild(iframe);
     }
 
-    async function getAdAndRedirect(){
+    async function getAdAndInject(){
       if (triggered) return;
 
       try {
@@ -58,25 +66,23 @@ exports.handler = async (event) => {
         const json = await res.json();
         if (json.ad_url) {
           const finalUrl = json.ad_url.replace("{{_r}}", _r);
-          triggerRedirect(finalUrl);
+          injectIframe(finalUrl);
         }
       } catch (err) {
         console.warn("❌ Ad Fetch Error:", err);
       }
     }
 
-    // Exit intent
     document.addEventListener("mouseout", function (e) {
       if (!e.toElement && !e.relatedTarget && e.clientY <= 0 && !triggered) {
-        getAdAndRedirect();
+        getAdAndInject();
       }
     });
 
-    // Scroll trigger
     window.addEventListener("scroll", function () {
       if (triggered) return;
       if (window.scrollY / document.body.scrollHeight > 0.5) {
-        getAdAndRedirect();
+        getAdAndInject();
       }
     });
 
