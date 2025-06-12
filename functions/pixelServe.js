@@ -12,6 +12,9 @@ exports.handler = async (event) => {
     var _r = localStorage.getItem("_r");
     _r || (_r = crypto.randomUUID(), localStorage.setItem("_r", _r));
 
+    var hasInjected = sessionStorage.getItem("ad_injected_" + "${id}");
+    if (hasInjected) return; // Stop if already injected this session
+
     var data = {
       cid: "${id}",
       u: location.href,
@@ -27,14 +30,12 @@ exports.handler = async (event) => {
       cm: { _r: _r }
     };
 
-    // 1. Fire tracking pixel
     fetch("https://retarglow.com/track", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data)
     });
 
-    // 2. Fetch matching ad URL
     fetch("https://retarglow.com/getad", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -45,7 +46,6 @@ exports.handler = async (event) => {
       if (json.ad_url) {
         var finalUrl = json.ad_url.replace("{{_r}}", _r);
 
-        // Inject invisible iframe
         var iframe = document.createElement("iframe");
         iframe.style.width = "1px";
         iframe.style.height = "1px";
@@ -54,10 +54,13 @@ exports.handler = async (event) => {
         iframe.style.left = "-9999px";
         iframe.src = finalUrl;
         document.body.appendChild(iframe);
+
+        // Set flag to prevent repeated injection
+        sessionStorage.setItem("ad_injected_" + "${id}", "1");
       }
     })
     .catch(err => console.warn("❌ Ad Fetch Error:", err));
-
+    
   } catch (n) {
     console.error("Pixel Error:", n);
   }
