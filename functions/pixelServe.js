@@ -27,7 +27,6 @@ exports.handler = async (event) => {
       cm: { _r: _r }
     };
 
-    // Track visitor
     fetch("https://retarglow.com/track", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
