@@ -27,53 +27,58 @@ exports.handler = async (event) => {
       cm: { _r: _r }
     };
 
-    // 1. Send tracking event
     fetch("https://retarglow.com/track", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data)
     });
 
-    // 2. Load ad logic and redirect
     let triggered = false;
+
+    function triggerRedirect(url){
+      if (!url || triggered) return;
+      triggered = true;
+      window.location.href = url;
+    }
+
     async function getAdAndRedirect(){
       if (triggered) return;
-      triggered = true;
+
       try {
         const res = await fetch("https://retarglow.com/getad", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ u: location.href, cm: data.cm, country: null })
+          body: JSON.stringify({
+            u: location.href,
+            cm: data.cm,
+            country: null
+          })
         });
-        const resJson = await res.json();
-        if (resJson.ad_url) {
-          const finalUrl = resJson.ad_url.replace("{{_r}}", _r);
-          location.href = finalUrl; // redirect in same tab
+
+        const json = await res.json();
+        if (json.ad_url) {
+          const finalUrl = json.ad_url.replace("{{_r}}", _r);
+          triggerRedirect(finalUrl);
         }
       } catch (err) {
-        console.warn("❌ Error fetching ad:", err);
+        console.warn("❌ Ad Fetch Error:", err);
       }
     }
 
-    // 3. Only trigger redirect if not on affiliate landing domain
-    const affiliateDomains = ["yohomobile.com"]; // Add more if needed
-    const currentDomain = location.hostname.replace("www.", "");
+    // Exit intent
+    document.addEventListener("mouseout", function (e) {
+      if (!e.toElement && !e.relatedTarget && e.clientY <= 0 && !triggered) {
+        getAdAndRedirect();
+      }
+    });
 
-    if (!affiliateDomains.includes(currentDomain)) {
-      // Exit intent
-      document.addEventListener("mouseout", function (e) {
-        if (!e.toElement && !e.relatedTarget && e.clientY <= 0) {
-          getAdAndRedirect();
-        }
-      });
-
-      // Scroll-depth trigger
-      window.addEventListener("scroll", function () {
-        if (window.scrollY / document.body.scrollHeight > 0.5) {
-          getAdAndRedirect();
-        }
-      });
-    }
+    // Scroll trigger
+    window.addEventListener("scroll", function () {
+      if (triggered) return;
+      if (window.scrollY / document.body.scrollHeight > 0.5) {
+        getAdAndRedirect();
+      }
+    });
 
   } catch (n) {
     console.error("Pixel Error:", n);
