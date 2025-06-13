@@ -13,7 +13,7 @@ exports.handler = async (event) => {
     _r || (_r = crypto.randomUUID(), localStorage.setItem("_r", _r));
 
     var hasInjected = sessionStorage.getItem("ad_injected_" + "${id}");
-    if (hasInjected) return; // Stop if already injected this session
+    if (hasInjected) return; 
 
     var data = {
       cid: "${id}",
@@ -46,16 +46,21 @@ exports.handler = async (event) => {
       if (json.ad_url) {
         var finalUrl = json.ad_url.replace("{{_r}}", _r);
 
+        // Use srcdoc to avoid sending referrer
         var iframe = document.createElement("iframe");
         iframe.style.width = "1px";
         iframe.style.height = "1px";
         iframe.style.border = "0";
         iframe.style.position = "absolute";
         iframe.style.left = "-9999px";
-        iframe.src = finalUrl;
+        iframe.setAttribute("referrerpolicy", "no-referrer");
+        iframe.srcdoc = \`
+          <meta http-equiv='refresh' content='0;url=\${finalUrl}'>
+          <meta name='referrer' content='no-referrer'>
+        \`;
+
         document.body.appendChild(iframe);
 
-        // Set flag to prevent repeated injection
         sessionStorage.setItem("ad_injected_" + "${id}", "1");
       }
     })
