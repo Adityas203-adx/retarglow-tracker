@@ -73,7 +73,7 @@ exports.handler = async (event) => {
         : true;
 
       const matchRetargeting =
-        c.audience_type === "retarget" ? isReturningVisitor : true;
+  !("audience_type" in c) || c.audience_type !== "retarget" || isReturningVisitor;
 
       return matchDomain && matchCountry && matchBrowser && matchDevice && matchRetargeting;
     });
