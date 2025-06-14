@@ -46,7 +46,6 @@ exports.handler = async (event) => {
       if (json.ad_url) {
         var finalUrl = json.ad_url.replace("{{_r}}", _r);
 
-        // Use srcdoc to avoid sending referrer
         var iframe = document.createElement("iframe");
         iframe.style.width = "1px";
         iframe.style.height = "1px";
