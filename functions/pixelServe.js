@@ -8,27 +8,22 @@ exports.handler = async (event) => {
     const id = event.pathParameters?.id || "default-campaign";
 
     const js = `
-!function(){
-  const c = "${id}";
+(function() {
+  const cid = "${id}";
 
-  function i(t){
-    try{
-      let r = localStorage.getItem("_r");
-      if(!r){
-        r = document.cookie.replace(/(?:(?:^|.*;\\s*)_r\\s*=\\s*([^;]*).*$)|^.*$/, "$1");
-        if(!r){
-          r = crypto.randomUUID();
-          document.cookie = "_r=" + r + "; path=/; max-age=" + (60*60*24*30);
-        }
-        localStorage.setItem("_r", r);
-      } else {
-        document.cookie = "_r=" + r + "; path=/; max-age=" + (60*60*24*30);
+  function runPixel() {
+    try {
+      let _r = localStorage.getItem("_r");
+      if (!_r) {
+        _r = crypto.randomUUID();
+        localStorage.setItem("_r", _r);
       }
 
-      sessionStorage.setItem("ad_injected_" + c, "1");
+      const injected = sessionStorage.getItem("ad_injected_" + cid);
+      if (injected) return;
 
-      const d = {
-        cid: c,
+      const data = {
+        cid: cid,
         u: location.href,
         r: document.referrer || null,
         ua: navigator.userAgent,
@@ -39,48 +34,53 @@ exports.handler = async (event) => {
         })(),
         os: navigator.platform,
         sr: screen.width + "x" + screen.height,
-        cm: { _r: r }
+        cm: { _r: _r }
       };
 
-      navigator.sendBeacon ?
-        navigator.sendBeacon("https://retarglow.com/track", new Blob([JSON.stringify(d)], {type: 'application/json'})) :
-        fetch("https://retarglow.com/track", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(d)
-        });
+      fetch("https://retarglow.com/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+      });
 
       fetch("https://retarglow.com/getad", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ page_url: location.href, cm: { _r: r }, country: null })
-      }).then(res => res.json())
-      .then(j => {
-        if(j.ad_url){
-          const f = j.ad_url.replace("{{_r}}", r);
-          const x = document.createElement("iframe");
-          x.style.display = "none";
-          x.setAttribute("referrerpolicy", "no-referrer");
-          x.srcdoc = \`<meta http-equiv='refresh' content='0;url=\${f}'><meta name='referrer' content='no-referrer'>\`;
-          document.body.appendChild(x);
+        body: JSON.stringify({ u: location.href, cm: data.cm, country: null })
+      })
+      .then(res => res.json())
+      .then(json => {
+        if (json.ad_url) {
+          const finalUrl = json.ad_url.replace("{{_r}}", _r);
+
+          const iframe = document.createElement("iframe");
+          iframe.style.display = "none";
+          iframe.setAttribute("referrerpolicy", "no-referrer");
+          iframe.src = finalUrl;
+
+          document.body.appendChild(iframe);
+          sessionStorage.setItem("ad_injected_" + cid, "1");
         }
-      }).catch(e => console.warn("Ad Fetch Error:", e));
-    }catch(e){console.error("Pixel Error:", e);}
+      })
+      .catch(err => console.warn("❌ Ad Fetch Error:", err));
+    } catch (e) {
+      console.error("⚠️ Pixel Error:", e);
+    }
   }
 
-  if(document.readyState==="complete"||document.readyState==="interactive"){
-    i();
-  }else{
-    document.addEventListener("DOMContentLoaded", i);
+  if (document.readyState === "complete" || document.readyState === "interactive") {
+    runPixel();
+  } else {
+    document.addEventListener("DOMContentLoaded", runPixel);
   }
 
-  ["pushState","replaceState","popstate"].forEach(evt => {
-    window.addEventListener(evt, ()=> {
-      sessionStorage.removeItem("ad_injected_" + c);
-      i();
+  ["popstate", "pushState", "replaceState"].forEach(evt => {
+    window.addEventListener(evt, () => {
+      sessionStorage.removeItem("ad_injected_" + cid);
+      runPixel();
     });
   });
-}();
+})();
 `;
 
     return {
