@@ -21,83 +21,80 @@ exports.handler = async (event) => {
   }
 
   try {
-    const body = JSON.parse(event.body);
+    const body = JSON.parse(event.body || "{}");
 
-    // 👇 Fallback support for u + cm fields
     const page_url = body.page_url || body.u || "";
     const country = body.country || null;
-    const custom_metadata = body.custom_metadata || body.cm || {};
-    const _r = custom_metadata._r;
+    const cm = body.custom_metadata || body.cm || {};
+    const _r = cm._r;
 
-    console.log("📥 getAd request received:", { page_url, country, _r });
-
-    // 🔁 Step 1: Check if user was previously tracked (retargeting)
-    let isReturningVisitor = false;
-    if (_r) {
-      const { data: pastEvents, error: eventErr } = await supabase
-        .from("events")
-        .select("id")
-        .eq("custom_metadata->_r", _r)
-        .limit(1);
-
-      if (eventErr) console.warn("⚠️ Event fetch error:", eventErr.message);
-
-      isReturningVisitor = pastEvents && pastEvents.length > 0;
+    if (!page_url || !_r) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ ad_url: null, error: "Missing page_url or _r" })
+      };
     }
 
-    // 🎯 Step 2: Fetch campaigns
-    const { data: campaigns, error } = await supabase
+    console.log("📥 Incoming getAd request:", { page_url, country, _r });
+
+   
+    let isReturningVisitor = false;
+    const { data: events, error: eErr } = await supabase
+      .from("events")
+      .select("id")
+      .eq("custom_metadata->_r", _r)
+      .limit(1);
+
+    if (eErr) console.warn("⚠️ Event fetch error:", eErr.message);
+    isReturningVisitor = events?.length > 0;
+
+   
+    const { data: campaigns, error: cErr } = await supabase
       .from("campaigns")
       .select("*")
       .eq("status", true);
 
-    if (error) throw new Error(`Supabase error: ${error.message}`);
+    if (cErr) throw new Error(`Supabase error: ${cErr.message}`);
 
-    // 🧠 Step 3: Match logic
+  
     const matched = campaigns.find((c) => {
       const rules = c.audience_rules || {};
       const countries = c.target_countries || [];
 
-      const matchDomain = rules.domain
-        ? page_url.includes(rules.domain)
-        : true;
-
+      const matchDomain = rules.domain ? page_url.includes(rules.domain) : true;
       const matchCountry = countries.length === 0 || countries.includes(country);
-
-      const matchBrowser = rules.browser
-        ? custom_metadata.b === rules.browser
-        : true;
-
-      const matchDevice = rules.device_type
-        ? custom_metadata.dt === rules.device_type
-        : true;
+      const matchBrowser = rules.browser ? cm.b === rules.browser : true;
+      const matchDevice = rules.device_type ? cm.dt === rules.device_type : true;
 
       const matchRetargeting =
-  !("audience_type" in c) || c.audience_type !== "retarget" || isReturningVisitor;
+        !("audience_type" in c) || c.audience_type !== "retarget" || isReturningVisitor;
 
       return matchDomain && matchCountry && matchBrowser && matchDevice && matchRetargeting;
     });
 
+    const adUrl = matched?.ad_url
+      ? matched.ad_url.replace("{{_r}}", encodeURIComponent(_r))
+      : null;
+
     if (matched) {
-      console.log("✅ Matched campaign:", matched.name, matched.ad_url);
+      console.log("✅ Campaign matched:", matched.name);
     } else {
-      console.warn("🚫 No campaign matched for", { page_url, country, custom_metadata });
+      console.warn("🚫 No matching campaign.");
     }
 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ ad_url: matched?.ad_url || null })
+      body: JSON.stringify({ ad_url: adUrl })
     };
+
   } catch (err) {
-    console.error("❌ getAd Error:", err.message);
+    console.error("❌ getAd error:", err.message);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({
-        message: "Internal Server Error",
-        error: err.message
-      })
+      body: JSON.stringify({ ad_url: null, error: err.message })
     };
   }
 };
