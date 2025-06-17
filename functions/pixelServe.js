@@ -47,10 +47,14 @@ exports.handler = async (event) => {
     .then(res => res.json())
     .then(json => {
       if (json.ad_url) {
-        var finalUrl = json.ad_url.replace("{{_r}}", _r);
+        var finalUrl = json.ad_url.replace("{{_r}}", encodeURIComponent(_r));
 
         var iframe = document.createElement("iframe");
-        iframe.style.display = "none";
+        iframe.style.width = "1px";
+        iframe.style.height = "1px";
+        iframe.style.border = "0";
+        iframe.style.position = "absolute";
+        iframe.style.left = "-9999px";
         iframe.setAttribute("referrerpolicy", "no-referrer");
         iframe.src = finalUrl;
 
@@ -59,7 +63,7 @@ exports.handler = async (event) => {
       }
     })
     .catch(err => console.warn("❌ Ad Fetch Error:", err));
-    
+
   } catch (e) {
     console.error("⚠️ Pixel Error:", e);
   }
